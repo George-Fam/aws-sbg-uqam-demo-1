@@ -1,0 +1,16 @@
+{
+  "name": "ageei-aws-demo-eb",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Petit serveur Express qui sert le build Angular de l'AGEEI, utilisé pour la démo Elastic Beanstalk de l'atelier AWS.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,60 @@
+name: Déployer sur AWS Amplify (déploiement manuel)
+
+# NOTE: dans la majorité des cas, Amplify Hosting se connecte directement
+# à votre dépôt Git et build lui-même à chaque push, voir
+# infra/amplify-setup.md, Option A. Ce workflow illustre l'Option B :
+# builder dans GitHub Actions et pousser l'archive vers Amplify, utile si
+# vous voulez garder le contrôle du build en dehors d'Amplify.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client-web/package-lock.json
+
+      - name: Installer les dépendances
+        working-directory: client-web
+        run: npm ci
+
+      - name: Build Angular (production)
+        working-directory: client-web
+        run: npx ng build --configuration production
+
+      - name: Configurer les identifiants AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Empaqueter le build
+        working-directory: client-web/public/browser
+        run: zip -r ../../../build.zip .
+
+      - name: Déployer vers Amplify
+        run: |
+          read -r JOB_ID UPLOAD_URL <<< "$(aws amplify create-deployment \
+            --app-id ${{ secrets.AMPLIFY_APP_ID }} \
+            --branch-name main \
+            --query '[jobId,zipUploadUrl]' --output text)"
+
+          curl --fail --request PUT --data-binary @build.zip "$UPLOAD_URL"
+
+          aws amplify start-deployment \
+            --app-id ${{ secrets.AMPLIFY_APP_ID }} \
+            --branch-name main \
+            --job-id "$JOB_ID"

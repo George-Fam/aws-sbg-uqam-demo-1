@@ -1,0 +1,69 @@
+name: Déployer sur Elastic Beanstalk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  EB_APP_NAME: ageei-aws-demo
+  EB_ENV_NAME: ageei-aws-demo-env
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client-web/package-lock.json
+
+      - name: Installer les dépendances Angular
+        working-directory: client-web
+        run: npm ci
+
+      - name: Build Angular (production)
+        working-directory: client-web
+        run: npx ng build --configuration production
+
+      - name: Copier le build dans le serveur Express
+        run: |
+          rm -rf eb-app/public
+          cp -r client-web/public/browser eb-app/public
+
+      - name: Empaqueter l'application EB
+        working-directory: eb-app
+        run: zip -r ../eb-deploy.zip . -x "node_modules/*"
+
+      - name: Configurer les identifiants AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Envoyer l'archive vers S3
+        run: |
+          VERSION_LABEL="deploy-${{ github.sha }}"
+          echo "VERSION_LABEL=$VERSION_LABEL" >> "$GITHUB_ENV"
+          aws s3 cp eb-deploy.zip \
+            s3://${{ secrets.EB_ARTIFACT_BUCKET }}/$VERSION_LABEL.zip
+
+      - name: Créer la version d'application
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name "$EB_APP_NAME" \
+            --version-label "$VERSION_LABEL" \
+            --source-bundle S3Bucket=${{ secrets.EB_ARTIFACT_BUCKET }},S3Key=$VERSION_LABEL.zip
+
+      - name: Déployer la nouvelle version
+        run: |
+          aws elasticbeanstalk update-environment \
+            --environment-name "$EB_ENV_NAME" \
+            --version-label "$VERSION_LABEL"

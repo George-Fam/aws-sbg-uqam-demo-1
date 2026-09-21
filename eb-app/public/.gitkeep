@@ -1,0 +1,2 @@
+Ce dossier est rempli par le build Angular (client-web/public/browser)
+pendant le workflow deploy-eb.yml — voir infra/eb-setup.md. Vide par défaut.
