@@ -57,7 +57,8 @@ aws iam create-role \
 
 # Attachez seulement les permissions nécessaires à la démo (principe du
 # moindre privilège) : S3, CloudFront, Amplify, Elastic Beanstalk selon
-# ce que vous testez. Ne donnez jamais AdministratorAccess pour ça.
+# ce que vous testez. Ne donnez jamais AdministratorAccess (le vrai,
+# global) pour ça.
 aws iam attach-role-policy \
   --role-name github-actions-deploy \
   --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
@@ -65,11 +66,25 @@ aws iam attach-role-policy \
 aws iam attach-role-policy \
   --role-name github-actions-deploy \
   --policy-arn arn:aws:iam::aws:policy/CloudFrontFullAccess
+
+# Nécessaire seulement si vous testez la méthode Amplify :
+aws iam attach-role-policy \
+  --role-name github-actions-deploy \
+  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess-Amplify
+
+# Nécessaire seulement si vous testez la méthode Elastic Beanstalk.
+# Note : la policy `AWSElasticBeanstalkFullAccess` n'existe plus, AWS
+# l'a remplacée par `AdministratorAccess-AWSElasticBeanstalk`.
+aws iam attach-role-policy \
+  --role-name github-actions-deploy \
+  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess-AWSElasticBeanstalk
 ```
 
 > Pour un atelier de 2h, les policies gérées ci-dessus sont acceptables.
 > En contexte réel, écrivez une policy custom qui liste exactement les
-> actions nécessaires.
+> actions nécessaires. Ces policies "AdministratorAccess-\*" sont
+> scopées au service (Amplify, Elastic Beanstalk) malgré leur nom — ce
+> ne sont pas des policies d'administrateur global du compte.
 
 ## 3. Ajouter le secret dans GitHub
 
